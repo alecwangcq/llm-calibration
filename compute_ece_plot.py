@@ -1,4 +1,5 @@
 import argparse
+import os
 import glob
 import pandas as pd
 import numpy as np
@@ -51,7 +52,7 @@ def bootstrap_accuracy(accuracies, n_bootstrap=1000):
     upper = np.percentile(mean_accuracies, 97.5)
     return lower, upper
 
-def plot_reliability_diagram(bins, confidences, accuracies, output_path):
+def plot_reliability_diagram(bins, confidences, accuracies, output_path, ece):
     bin_centers = []
     accuracy_per_bin = []
     confidence_per_bin = []
@@ -100,6 +101,7 @@ def plot_reliability_diagram(bins, confidences, accuracies, output_path):
 
     # Plot the perfect calibration line
     plt.plot([0, 1], [0, 1], linestyle='--', color='red', label='Perfect Calibration')
+    plt.text(0.05, 0.95, f'ECE = {ece:.4f}', fontsize=14, fontweight='bold', verticalalignment='top')
 
     plt.xlabel('Confidence')
     plt.ylabel('Accuracy')
@@ -181,18 +183,37 @@ if __name__ == '__main__':
     # Gather all logits CSV files
     csv_files = glob.glob(f'{args.csv_dir}/*_logits.csv')
 
+    for f in csv_files:
+        # Process CSV files to get confidences and accuracies
+        confidences, accuracies, total_samples = process_csv_files([f])
+        # confidences, accuracies, total_samples = process_csv_files(csv_files)
+
+        # Compute Expected Calibration Error (ECE)
+        ece = compute_ece(bins, confidences, accuracies, total_samples)
+        print(f"\nExpected Calibration Error (ECE): {ece:.4f}")
+
+        # Plot and save the calibration bar plot with 95% CI
+        # sample_csv = csv_files[0] if csv_files else 'ece_plot.png'
+        sample_csv = f
+        plot_reliability_diagram(bins, confidences, accuracies, sample_csv, ece)
+
+        print(f"\nCalibration bar plot saved as {sample_csv.replace('.csv', '_ece_bar_plot.png')}")
+    
     # Process CSV files to get confidences and accuracies
-    confidences, accuracies, total_samples = process_csv_files(csv_files)
+    if True:
+        confidences, accuracies, total_samples = process_csv_files(csv_files)
+        # confidences, accuracies, total_samples = process_csv_files(csv_files)
 
-    # Compute Expected Calibration Error (ECE)
-    ece = compute_ece(bins, confidences, accuracies, total_samples)
-    print(f"\nExpected Calibration Error (ECE): {ece:.4f}")
+        # Compute Expected Calibration Error (ECE)
+        ece = compute_ece(bins, confidences, accuracies, total_samples)
+        print(f"\nExpected Calibration Error (ECE): {ece:.4f}")
 
-    # Plot and save the calibration bar plot with 95% CI
-    sample_csv = csv_files[0] if csv_files else 'ece_plot.png'
-    plot_reliability_diagram(bins, confidences, accuracies, sample_csv)
+        # Plot and save the calibration bar plot with 95% CI
+        # sample_csv = csv_files[0] if csv_files else 'ece_plot.png'
+        sample_csv = os.path.join(args.csv_dir, 'overall.csv')
+        plot_reliability_diagram(bins, confidences, accuracies, sample_csv, ece)
 
-    print(f"\nCalibration bar plot saved as {sample_csv.replace('.csv', '_ece_bar_plot.png')}")
+        print(f"\nCalibration bar plot saved as {sample_csv.replace('.csv', '_ece_bar_plot.png')}")
 
 # import argparse
 # import pandas as pd
